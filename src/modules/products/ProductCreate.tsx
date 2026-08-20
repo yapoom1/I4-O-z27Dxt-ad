@@ -730,15 +730,17 @@ export const ProductCreate: React.FC = () => {
               <h3 className="text-sm font-semibold text-foreground">Shipping & Package Dimensions</h3>
             </CardHeader>
             <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                type="number"
-                step="0.01"
-                label="Package Weight (kg) *"
-                placeholder="e.g. 0.50"
-                value={weight}
-                onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
-                helperText="Required for Shiprocket rate calculation"
-              />
+              <div>
+                <Input
+                  type="number"
+                  step="0.01"
+                  label="Package Weight (kg) *"
+                  placeholder="e.g. 0.50"
+                  value={weight}
+                  onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-[0.8rem] text-muted-foreground mt-1">Required for Shiprocket rate calculation</p>
+              </div>
               <Input
                 type="number"
                 step="0.1"
