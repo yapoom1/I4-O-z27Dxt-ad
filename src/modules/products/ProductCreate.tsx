@@ -41,6 +41,7 @@ interface GeneratedVariant {
   mrp: number;
   price: number;
   stock: number;
+  weight: number;
 }
 
 export const ProductCreate: React.FC = () => {
@@ -168,11 +169,11 @@ export const ProductCreate: React.FC = () => {
   // Variants state
   const [hasVariants, setHasVariants] = useState(false);
   const [simpleVariants, setSimpleVariants] = useState([
-    { name: '', sku: '', price: 0, mrp: 0, stock: 0 }
+    { name: '', sku: '', price: 0, mrp: 0, stock: 0, weight: 0.5 }
   ]);
 
   const handleAddVariant = () => {
-    setSimpleVariants(prev => [...prev, { name: '', sku: '', price: price, mrp: mrp, stock: 0 }]);
+    setSimpleVariants(prev => [...prev, { name: '', sku: '', price: price, mrp: mrp, stock: 0, weight: weight }]);
   };
 
   const handleRemoveVariant = (idx: number) => {
@@ -487,7 +488,13 @@ export const ProductCreate: React.FC = () => {
                   title: childTitle,
                   productType: 'GOODS',
                   sku: v.sku || undefined,
-                  parentId: productId
+                  parentId: productId,
+                  shippingDimensions: {
+                    weight: Number(v.weight) || weight || 0.5,
+                    length: Number(length) || 10.0,
+                    width: Number(width) || 10.0,
+                    height: Number(height) || 10.0,
+                  }
                 }
               }
             });
@@ -797,17 +804,18 @@ export const ProductCreate: React.FC = () => {
                   
                   {simpleVariants.length > 0 && (
                     <div className="border border-border rounded-md divide-y divide-border overflow-hidden bg-card">
-                      <div className="bg-muted/50 p-2 grid grid-cols-12 gap-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                        <div className="col-span-3">Variant Name</div>
-                        <div className="col-span-3">SKU</div>
-                        <div className="col-span-2">Price</div>
-                        <div className="col-span-2">MRP</div>
-                        <div className="col-span-1">Stock</div>
-                        <div className="col-span-1 text-center">Act</div>
+                      <div className="bg-muted/50 p-2 grid grid-cols-13 gap-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{gridTemplateColumns: '2fr 2fr 1.5fr 1.5fr 1fr 1fr 0.6fr'}}>
+                        <div>Variant Name</div>
+                        <div>SKU</div>
+                        <div>Price (₹)</div>
+                        <div>MRP (₹)</div>
+                        <div>Stock</div>
+                        <div>Weight (kg)</div>
+                        <div className="text-center">Act</div>
                       </div>
                       {simpleVariants.map((v, idx) => (
-                        <div key={idx} className="p-2 grid grid-cols-12 gap-2 items-center text-xs">
-                          <div className="col-span-3">
+                        <div key={idx} className="p-2 grid gap-2 items-center text-xs" style={{gridTemplateColumns: '2fr 2fr 1.5fr 1.5fr 1fr 1fr 0.6fr'}}>
+                          <div>
                             <input 
                               type="text" 
                               placeholder="e.g. Red - XL"
@@ -816,7 +824,7 @@ export const ProductCreate: React.FC = () => {
                               onChange={e => updateVariant(idx, 'name', e.target.value)}
                             />
                           </div>
-                          <div className="col-span-3">
+                          <div>
                             <input 
                               type="text" 
                               placeholder="SKU"
@@ -825,7 +833,7 @@ export const ProductCreate: React.FC = () => {
                               onChange={e => updateVariant(idx, 'sku', e.target.value)}
                             />
                           </div>
-                          <div className="col-span-2">
+                          <div>
                             <input 
                               type="number" 
                               placeholder="Price"
@@ -834,7 +842,7 @@ export const ProductCreate: React.FC = () => {
                               onChange={e => updateVariant(idx, 'price', parseFloat(e.target.value))}
                             />
                           </div>
-                          <div className="col-span-2">
+                          <div>
                             <input 
                               type="number" 
                               placeholder="MRP"
@@ -843,7 +851,7 @@ export const ProductCreate: React.FC = () => {
                               onChange={e => updateVariant(idx, 'mrp', parseFloat(e.target.value))}
                             />
                           </div>
-                          <div className="col-span-1">
+                          <div>
                             <input 
                               type="number" 
                               placeholder="Stock"
@@ -852,7 +860,18 @@ export const ProductCreate: React.FC = () => {
                               onChange={e => updateVariant(idx, 'stock', parseInt(e.target.value) || 0)}
                             />
                           </div>
-                          <div className="col-span-1 flex justify-center">
+                          <div>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              placeholder={String(weight || 0.5)}
+                              className="h-8 w-full px-2 border border-input bg-card rounded"
+                              value={v.weight}
+                              onChange={e => updateVariant(idx, 'weight', parseFloat(e.target.value) || 0)}
+                              title="Weight in kg (required for shipping)"
+                            />
+                          </div>
+                          <div className="flex justify-center">
                             <button
                               onClick={() => handleRemoveVariant(idx)}
                               className="h-8 w-8 flex items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
