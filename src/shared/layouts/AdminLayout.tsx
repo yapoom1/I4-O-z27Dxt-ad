@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@apollo/client/react';
 import { GET_MY_TENANT_CONFIG } from '@/shared/graphql/queries/tenant';
+import { GET_ORDERS } from '@/shared/graphql/queries/orders';
 import { useAppStore } from '@/shared/stores/useAppStore';
 import { CommandPalette } from '@/shared/components/CommandPalette';
 import { 
@@ -27,7 +28,10 @@ export const AdminLayout: React.FC = () => {
     markAsRead,
     markAllAsRead,
     user,
-    setCommandPaletteOpen
+    setCommandPaletteOpen,
+    knownOrderIds,
+    setKnownOrderIds,
+    addNotification
   } = useAppStore();
 
   const navigate = useNavigate();
@@ -43,6 +47,33 @@ export const AdminLayout: React.FC = () => {
   const { data: tenantData } = useQuery<any>(GET_MY_TENANT_CONFIG, {
     fetchPolicy: 'network-only' // always fetch fresh branding on layout mount
   });
+
+  const { data: ordersData } = useQuery<any>(GET_ORDERS, {
+    pollInterval: 15000,
+    fetchPolicy: 'network-only'
+  });
+
+  useEffect(() => {
+    if (ordersData?.tenantOrders) {
+      const currentIds = ordersData.tenantOrders.map((o: any) => o.id);
+      if (knownOrderIds.length === 0) {
+        setKnownOrderIds(currentIds);
+      } else {
+        const newIds = currentIds.filter((id: string) => !knownOrderIds.includes(id));
+        if (newIds.length > 0) {
+          newIds.forEach((id: string) => {
+            const order = ordersData.tenantOrders.find((o: any) => o.id === id);
+            addNotification({
+              title: 'New Order Received',
+              message: `Order #${id.substring(0, 8).toUpperCase()} for ₹${order.grandTotal || 0} has been placed.`,
+              type: 'order'
+            });
+          });
+          setKnownOrderIds([...knownOrderIds, ...newIds]);
+        }
+      }
+    }
+  }, [ordersData, knownOrderIds, setKnownOrderIds, addNotification]);
 
   useEffect(() => {
     if (tenantData?.tenant) {
@@ -285,32 +316,23 @@ export const AdminLayout: React.FC = () => {
 
           <div className="flex items-center gap-3">
             {/* Global Search and command palette trigger */}
-            <button
-              onClick={() => setCommandPaletteOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-secondary border border-border text-muted-foreground text-xs hover:text-foreground transition-all cursor-pointer w-40 sm:w-56 justify-between"
-            >
-              <span className="flex items-center gap-2 truncate">
-                <Search className="h-3.5 w-3.5" />
-                <span className="truncate">Search commands...</span>
-              </span>
-              <kbd className="border border-border/70 bg-card px-1 rounded select-none shrink-0 text-[10px]">
-                ⌘K
-              </kbd>
-            </button>
-
-            {/* AI Assistant Glow shortcut */}
-            <NavLink
-              to="/ai"
-              className="p-2 rounded-md hover:bg-secondary text-amber-900 hover:text-amber-950 dark:text-amber-700 dark:hover:text-amber-600 transition-colors cursor-pointer relative group"
-              title="Open AI Copilot"
-            >
-              <Sparkles className="h-4 w-4 animate-pulse" />
-            </NavLink>
-
-            {/* Notification Menu */}
             <div className="relative">
               <button
-                onClick={() => setShowNotifications(!showNotifications)}
+                onClick={() => setCommandPaletteOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-secondary border border-border text-muted-foreground text-xs hover:text-foreground transition-all cursor-pointer w-40 sm:w-56"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <span className="truncate">Search...</span>
+              </button>
+            </div>
+
+            
+
+            {/* Notification Menu */}
+            {/* Notification Menu */}
+            <div>
+              <button
+                onClick={() => setShowNotifications(true)}
                 className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors cursor-pointer relative"
               >
                 <Bell className="h-4 w-4" />
@@ -319,42 +341,67 @@ export const AdminLayout: React.FC = () => {
                 )}
               </button>
               
+              {/* Slide-over Overlay */}
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-card border border-border shadow-xl rounded-md p-2 z-50 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between border-b border-border pb-2 px-1">
-                    <span className="text-xs font-semibold text-foreground">Notifications</span>
+                <div 
+                  className="fixed inset-0 bg-background/50 backdrop-blur-sm z-50"
+                  onClick={() => setShowNotifications(false)}
+                />
+              )}
+              
+              {/* Slide-over Panel */}
+              <div 
+                className={`fixed top-0 right-0 h-full w-80 sm:w-[400px] bg-card border-l border-border shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${showNotifications ? 'translate-x-0' : 'translate-x-full'}`}
+              >
+                <div className="flex items-center justify-between border-b border-border p-4">
+                  <span className="text-base font-bold text-foreground">Notifications</span>
+                  <div className="flex items-center gap-3">
                     {unreadNotifs > 0 && (
                       <button 
                         onClick={markAllAsRead} 
-                        className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                        className="text-xs text-primary hover:underline font-semibold cursor-pointer"
                       >
                         Mark all as read
                       </button>
                     )}
-                  </div>
-                  <div className="max-h-60 overflow-y-auto flex flex-col gap-1">
-                    {notifications.length === 0 ? (
-                      <div className="py-8 text-center text-xs text-muted-foreground">
-                        All caught up!
-                      </div>
-                    ) : (
-                      notifications.map(notif => (
-                        <div 
-                          key={notif.id} 
-                          onClick={() => markAsRead(notif.id)}
-                          className={`p-2 rounded-md transition-colors cursor-pointer text-xs flex flex-col gap-1 ${notif.read ? 'opacity-65 hover:bg-muted/50' : 'bg-primary/5 hover:bg-primary/10 border-l-2 border-primary'}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-foreground truncate">{notif.title}</span>
-                            <span className="text-[9px] text-muted-foreground">{notif.time}</span>
-                          </div>
-                          <p className="text-muted-foreground line-clamp-2 leading-normal">{notif.message}</p>
-                        </div>
-                      ))
-                    )}
+                    <button 
+                      onClick={() => setShowNotifications(false)}
+                      className="h-7 w-7 rounded flex items-center justify-center hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                      title="Close"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
                   </div>
                 </div>
-              )}
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+                  {notifications.length === 0 ? (
+                    <div className="py-12 text-center text-sm text-muted-foreground">
+                      All caught up! You have no new notifications.
+                    </div>
+                  ) : (
+                    notifications.map(notif => (
+                      <div 
+                        key={notif.id} 
+                        onClick={() => {
+                          markAsRead(notif.id);
+                          setShowNotifications(false);
+                          if (notif.type === 'order') navigate('/orders');
+                          else if (notif.type === 'inventory') navigate('/products');
+                          else if (notif.type === 'customer') navigate('/customers');
+                          else if (notif.type === 'system') navigate('/settings');
+                        }}
+                        className={`p-3 rounded-lg transition-all cursor-pointer text-sm flex flex-col gap-1.5 ${notif.read ? 'opacity-70 hover:bg-secondary/50 border border-transparent' : 'bg-primary/5 hover:bg-primary/10 border border-primary/20 shadow-sm'}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-foreground">{notif.title}</span>
+                          <span className="text-[10px] text-muted-foreground font-medium">{notif.time}</span>
+                        </div>
+                        <p className="text-muted-foreground text-xs leading-relaxed">{notif.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Light / Dark toggler */}

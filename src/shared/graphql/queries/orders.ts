@@ -6,7 +6,20 @@ export const GET_ORDERS = gql`
       id
       userId
       user {
+        id
         name
+        email
+        mobilenumber
+        addresses {
+          customerName
+          phoneNumber
+          addressLine1
+          addressLine2
+          landmark
+          pincode
+          state
+          district
+        }
       }
       grandTotal
       orderStatus
@@ -16,6 +29,12 @@ export const GET_ORDERS = gql`
       deliveryAddress {
         customerName
         phoneNumber
+        addressLine1
+        addressLine2
+        landmark
+        pincode
+        state
+        district
       }
       items {
         quantity
@@ -28,8 +47,22 @@ export const GET_ORDER = gql`
   query GetOrder($id: UUID!) {
     order(id: $id) {
       id
+      userId
       user {
+        id
         name
+        email
+        mobilenumber
+        addresses {
+          customerName
+          phoneNumber
+          addressLine1
+          addressLine2
+          landmark
+          pincode
+          state
+          district
+        }
       }
       deliveryService
       deliveryFee

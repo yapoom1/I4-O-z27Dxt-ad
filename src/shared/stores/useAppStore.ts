@@ -51,6 +51,8 @@ interface AppState {
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   clearNotifications: () => void;
+  knownOrderIds: string[];
+  setKnownOrderIds: (ids: string[]) => void;
   
   // User Session
   user: UserProfile;
@@ -96,32 +98,7 @@ const defaultUser: UserProfile = {
   permissions: ['*'], // wildcard access
 };
 
-const defaultNotifications: AppNotification[] = [
-  {
-    id: 'n1',
-    title: 'New High-Value Order',
-    message: 'Order #ORD-9482 received for ₹3,42,299.00 from Jane Doe.',
-    time: '2 mins ago',
-    read: false,
-    type: 'order',
-  },
-  {
-    id: 'n2',
-    title: 'Low Stock Warning',
-    message: 'HP LaserJet Pro MFP M227fdw inventory level fell below threshold (3 remaining).',
-    time: '24 mins ago',
-    read: false,
-    type: 'inventory',
-  },
-  {
-    id: 'n3',
-    title: 'New Vendor Application',
-    message: 'Apex Trading Corp submitted an application to sell on your marketplace.',
-    time: '2 hours ago',
-    read: true,
-    type: 'system',
-  },
-];
+const defaultNotifications: AppNotification[] = [];
 
 export const useAppStore = create<AppState>((set, get) => ({
   activeStore: null,
@@ -151,6 +128,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setGlobalSearchQuery: (globalSearchQuery) => set({ globalSearchQuery }),
   
   notifications: defaultNotifications,
+  knownOrderIds: [],
+  setKnownOrderIds: (ids: string[]) => set({ knownOrderIds: ids }),
   addNotification: (notification) => {
     const newNotif: AppNotification = {
       ...notification,

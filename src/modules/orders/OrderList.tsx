@@ -25,21 +25,34 @@ export const OrderList: React.FC = () => {
       const s = search.toLowerCase();
       list = list.filter((ord: any) => 
         ord.id.toLowerCase().includes(s) || 
-        ord.deliveryAddress?.customerName?.toLowerCase().includes(s)
+        ord.deliveryAddress?.customerName?.toLowerCase().includes(s) ||
+        ord.user?.name?.toLowerCase().includes(s) ||
+        ord.user?.email?.toLowerCase().includes(s) ||
+        ord.deliveryAddress?.phoneNumber?.includes(s) ||
+        ord.user?.mobilenumber?.includes(s)
       );
     }
-    return list.map((ord: any) => ({
-      id: ord.id,
-      customerName: ord.user?.name || ord.deliveryAddress?.customerName || 'Walk-in Customer',
-      customerEmail: ord.deliveryAddress?.phoneNumber || 'N/A',
-      total: ord.grandTotal || 0,
-      itemsCount: ord.items?.reduce((sum: number, it: any) => sum + (it.quantity || 0), 0) || 0,
-      paymentMethod: ord.payments?.[0]?.paymentMethod || 'COD',
-      gateway: ord.paymentStatus || 'PENDING',
-      shippingMethod: ord.deliveryService || 'Standard Shipping',
-      date: ord.createdAt || new Date().toISOString(),
-      status: ord.orderStatus?.toLowerCase() || 'pending',
-    }));
+    return list.map((ord: any) => {
+      const activeAddress = ord.deliveryAddress || (ord.user?.addresses?.length > 0 ? ord.user.addresses[0] : null);
+      const customerName = activeAddress?.customerName || ord.user?.name || 'Walk-in Customer';
+      const customerEmail = ord.user?.email || 'N/A';
+      const customerPhone = activeAddress?.phoneNumber || ord.user?.mobilenumber || 'N/A';
+
+      return {
+        id: ord.id,
+        userId: ord.userId || ord.user?.id,
+        customerName,
+        customerEmail,
+        customerPhone,
+        total: ord.grandTotal || 0,
+        itemsCount: ord.items?.reduce((sum: number, it: any) => sum + (it.quantity || 0), 0) || 0,
+        paymentMethod: ord.paymentStatus || 'COD',
+        gateway: ord.paymentStatus || 'PENDING',
+        shippingMethod: ord.deliveryService || 'Standard Shipping',
+        date: ord.createdAt || new Date().toISOString(),
+        status: ord.orderStatus?.toLowerCase() || 'pending',
+      };
+    });
   }, [rawOrders, search]);
 
   React.useEffect(() => {
@@ -58,6 +71,42 @@ export const OrderList: React.FC = () => {
     overscan: 10,
   });
 
+  const handleExport = () => {
+    if (orders.length === 0) {
+      alert('No invoices to export.');
+      return;
+    }
+    
+    const headers = ['Order ID', 'Customer Name', 'Email', 'Phone', 'Total Amount', 'Items Count', 'Payment Method', 'Shipping Method', 'Order Date', 'Status'];
+    
+    const rows = orders.map((ord: any) => [
+      ord.id,
+      `"${ord.customerName || ''}"`,
+      `"${ord.customerEmail || ''}"`,
+      `"${ord.customerPhone || ''}"`,
+      ord.total,
+      ord.itemsCount,
+      ord.paymentMethod,
+      ord.shippingMethod,
+      `"${ord.date}"`,
+      ord.status
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `invoices_export_${new Date().getTime()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -69,10 +118,10 @@ export const OrderList: React.FC = () => {
           </p>
         </div>
         <button 
-          onClick={() => alert('Generating aggregate sales reports in PDF format... Saved successfully.')}
+          onClick={handleExport}
           className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs font-semibold border border-border cursor-pointer self-start sm:self-auto"
         >
-          <Download className="h-4 w-4" /> Export Invoices
+          <Download className="h-4 w-4" /> Export All Invoices
         </button>
       </div>
 
@@ -186,7 +235,9 @@ export const OrderList: React.FC = () => {
                     {/* Customer */}
                     <div style={{ width: '220px' }} className="font-medium text-foreground truncate pr-4">
                       <div>{order.customerName}</div>
-                      <div className="text-[10px] text-muted-foreground font-normal">{order.customerEmail}</div>
+                      <div className="text-[10px] text-muted-foreground font-normal">
+                        {order.customerEmail !== 'N/A' ? order.customerEmail : (order.customerPhone !== 'N/A' ? order.customerPhone : 'N/A')}
+                      </div>
                     </div>
 
                     {/* Total */}

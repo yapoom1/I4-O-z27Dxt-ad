@@ -27,35 +27,64 @@ export const OrderDetails: React.FC = () => {
   const rawOrder = data?.order;
   const order = useMemo(() => {
     if (!rawOrder) return null;
+    const activeAddress = rawOrder.deliveryAddress || (rawOrder.user?.addresses?.length > 0 ? rawOrder.user.addresses[0] : null);
+    const customerName = activeAddress?.customerName || rawOrder.user?.name || 'Walk-in Customer';
+    const customerEmail = rawOrder.user?.email || 'N/A';
+    const customerPhone = activeAddress?.phoneNumber || rawOrder.user?.mobilenumber || 'N/A';
+
     return {
       id: rawOrder.id,
-      customerName: rawOrder.user?.name || rawOrder.deliveryAddress?.customerName || 'Walk-in Customer',
-      customerEmail: rawOrder.deliveryAddress?.phoneNumber || 'N/A',
+      userId: rawOrder.userId || rawOrder.user?.id,
+      customerName,
+      customerEmail,
+      customerPhone,
       total: rawOrder.grandTotal || 0,
       itemTotal: rawOrder.itemTotal || 0,
       discountApplied: rawOrder.discountApplied || 0,
       tax: rawOrder.tax || 0,
       deliveryFee: rawOrder.deliveryFee || 0,
       itemsCount: rawOrder.items?.reduce((sum: number, it: any) => sum + (it.quantity || 0), 0) || 0,
-      paymentMethod: rawOrder.payments?.[0]?.paymentMethod || 'COD',
+      paymentMethod: rawOrder.paymentStatus || 'COD',
       gateway: rawOrder.paymentStatus || 'PENDING',
       shippingMethod: rawOrder.deliveryService || 'Standard Shipping',
       date: rawOrder.createdAt || new Date().toISOString(),
       status: rawOrder.orderStatus?.toLowerCase() || 'pending',
-      deliveryAddress: rawOrder.deliveryAddress,
+      deliveryAddress: activeAddress,
       items: rawOrder.items || [],
+      user: rawOrder.user,
     };
   }, [rawOrder]);
 
   const steps = useMemo(() => {
     if (!order) return [];
+    console.log("Raw Order Data from Backend:", rawOrder);
+    
     const status = order.status;
-    const dateStr = order.date.split('T')[0] || order.date.split(' ')[0];
+    const orderDate = new Date(order.date);
+    const dateStr = !isNaN(orderDate.getTime()) 
+      ? orderDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+      : order.date;
+    const timeStr = !isNaN(orderDate.getTime())
+      ? orderDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      : '';
+
+    const isProcessing = ['processing', 'shipped', 'delivered'].includes(status);
+    const isShipped = ['shipped', 'delivered'].includes(status);
+    const isDelivered = status === 'delivered';
+    const isCancelled = status === 'cancelled';
+
+    if (isCancelled) {
+      return [
+        { title: 'Order Placed', time: `${dateStr} ${timeStr}`.trim(), desc: 'Order was placed by client.', icon: CreditCard, done: true },
+        { title: 'Order Cancelled', time: 'Cancelled', desc: 'This order has been cancelled.', icon: ShieldAlert, done: true },
+      ];
+    }
+
     return [
-      { title: 'Order Placed', time: `${dateStr} 10:24 AM`, desc: 'Order received and payment authorized.', icon: CreditCard, done: true },
-      { title: 'Processing', time: `${dateStr} 11:15 AM`, desc: 'Warehouse began packing items.', icon: Package, done: status !== 'processing' },
-      { title: 'Shipped', time: `${dateStr} 02:40 PM`, desc: `Dispatched via ${order.shippingMethod}.`, icon: Truck, done: status === 'shipped' || status === 'delivered' },
-      { title: 'Delivered', time: 'Pending Delivery', desc: 'Awaiting courier signature confirmation.', icon: CheckCircle, done: status === 'delivered' },
+      { title: 'Order Placed', time: `${dateStr} ${timeStr}`.trim(), desc: 'Order placed by client.', icon: CreditCard, done: true },
+      { title: 'Processing', time: isProcessing ? 'Completed' : 'Pending', desc: isProcessing ? 'Order is being processed.' : 'Awaiting fulfillment.', icon: Package, done: isProcessing },
+      { title: 'Shipped', time: isShipped ? 'Dispatched' : 'Pending', desc: `Shipping via ${order.shippingMethod}.`, icon: Truck, done: isShipped },
+      { title: 'Delivered', time: isDelivered ? 'Delivered' : 'Pending', desc: isDelivered ? 'Delivered to customer.' : 'Awaiting courier delivery confirmation.', icon: CheckCircle, done: isDelivered },
     ];
   }, [order]);
 
@@ -83,7 +112,9 @@ export const OrderDetails: React.FC = () => {
           </button>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground m-0">Order: {order.id}</h1>
-            <p className="text-xs text-muted-foreground">Gateway ID: TXN_RG392810 • Method: {order.paymentMethod}</p>
+            <p className="text-xs text-muted-foreground">
+              Date: {new Date(order.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} • Payment: {order.gateway} • Delivery: {order.shippingMethod}
+            </p>
           </div>
         </div>
         
@@ -263,8 +294,16 @@ export const OrderDetails: React.FC = () => {
         {/* Right Side Customer details */}
         <div className="space-y-6">
           <Card>
-            <CardHeader>
-              <h3 className="text-sm font-semibold text-foreground">Customer Profile</h3>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Client / Customer Profile</h3>
+              {order.userId && (
+                <button
+                  onClick={() => navigate(`/customers/${order.userId}`, { state: { customerName: order.customerName } })}
+                  className="text-xs text-primary hover:underline font-medium cursor-pointer"
+                >
+                  View Profile
+                </button>
+              )}
             </CardHeader>
             <CardContent className="p-4 space-y-3 text-xs">
               <div>
@@ -275,16 +314,26 @@ export const OrderDetails: React.FC = () => {
                 <span className="text-[10px] text-muted-foreground uppercase font-medium">Contact Email</span>
                 <span className="text-foreground block">{order.customerEmail}</span>
               </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-medium">Phone Number</span>
+                <span className="text-foreground block">{order.customerPhone}</span>
+              </div>
               <div className="border-t border-border pt-3">
                 <span className="text-[10px] text-muted-foreground uppercase font-medium block">Shipping Address</span>
                 {order.deliveryAddress ? (
                   <span className="text-foreground block leading-relaxed">
+                    {order.deliveryAddress.customerName && order.deliveryAddress.customerName !== order.customerName && (
+                      <span className="font-semibold text-foreground block">{order.deliveryAddress.customerName}</span>
+                    )}
                     {order.deliveryAddress.addressLine1}
                     {order.deliveryAddress.addressLine2 && <><br />{order.deliveryAddress.addressLine2}</>}
                     {order.deliveryAddress.landmark && <><br />Landmark: {order.deliveryAddress.landmark}</>}
                     <br />
                     {order.deliveryAddress.district && `${order.deliveryAddress.district}, `}
                     {order.deliveryAddress.state} - {order.deliveryAddress.pincode}
+                    {order.deliveryAddress.phoneNumber && (
+                      <span className="text-muted-foreground block mt-1">Delivery Contact: {order.deliveryAddress.phoneNumber}</span>
+                    )}
                   </span>
                 ) : (
                   <span className="text-muted-foreground block">No shipping address provided.</span>
@@ -303,9 +352,9 @@ export const OrderDetails: React.FC = () => {
                 <span className="text-foreground block font-semibold">{order.shippingMethod}</span>
               </div>
               <div>
-                <span className="text-[10px] text-muted-foreground uppercase font-medium">Tracking Number</span>
-                <span className="text-primary hover:underline cursor-pointer block font-mono">
-                  TRK-{order.id.replace('ORD-', '')}-FDL
+                <span className="text-[10px] text-muted-foreground uppercase font-medium">Order Reference ID</span>
+                <span className="text-primary font-mono block">
+                  {order.id}
                 </span>
               </div>
             </CardContent>
@@ -334,12 +383,12 @@ export const OrderDetails: React.FC = () => {
             <div className="overflow-y-auto p-4 space-y-6 text-xs text-foreground bg-white text-black rounded border border-gray-200 mt-4 font-sans">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900 m-0">Admin Console</h2>
-                  <p className="text-gray-500">GSTIN: 33AAFCR2910M1Z8 • Chennai Branch</p>
+                  <h2 className="text-lg font-bold text-gray-900 m-0">Store Invoice</h2>
+                  <p className="text-gray-500">Order Ref: {order.id}</p>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold text-gray-900">INVOICE</div>
-                  <p className="text-gray-500">Date: {order.date.split(' ')[0]}</p>
+                  <p className="text-gray-500">Date: {new Date(order.date).toLocaleDateString('en-IN')}</p>
                 </div>
               </div>
 
@@ -347,12 +396,23 @@ export const OrderDetails: React.FC = () => {
                 <div>
                   <span className="text-gray-400 font-bold block">BILLED TO:</span>
                   <span className="text-gray-800 font-semibold block">{order.customerName}</span>
-                  <span className="text-gray-600 block">{order.customerEmail}</span>
+                  {order.customerEmail !== 'N/A' && <span className="text-gray-600 block">{order.customerEmail}</span>}
+                  {order.customerPhone !== 'N/A' && <span className="text-gray-600 block">Phone: {order.customerPhone}</span>}
+                  {order.deliveryAddress && (
+                    <span className="text-gray-500 block text-[11px] mt-1 leading-snug">
+                      {order.deliveryAddress.addressLine1}
+                      {order.deliveryAddress.addressLine2 && `, ${order.deliveryAddress.addressLine2}`}
+                      <br />
+                      {order.deliveryAddress.district && `${order.deliveryAddress.district}, `}
+                      {order.deliveryAddress.state} - {order.deliveryAddress.pincode}
+                    </span>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="text-gray-400 font-bold block">SHIPPED VIA:</span>
                   <span className="text-gray-800 block font-semibold">{order.shippingMethod}</span>
-                  <span className="text-gray-500 block">Tracking: TRK-{order.id.replace('ORD-', '')}-FDL</span>
+                  <span className="text-gray-500 block">Status: {order.status.toUpperCase()}</span>
+                  <span className="text-gray-500 block">Payment: {order.gateway}</span>
                 </div>
               </div>
 
